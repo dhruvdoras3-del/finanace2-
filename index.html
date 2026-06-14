@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinSmart - Personal Finance</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      margin: 0; padding: 0; background: #0B0F1A;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #F1F5F9;
+    }
+    * { box-sizing: border-box; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0B0F1A; }
+    ::-webkit-scrollbar-thumb { background: #2A3347; border-radius: 3px; }
+    select option { background: #111827; color: #F1F5F9; }
+    input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.6); }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  </style>
+
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  
+  <script src="https://unpkg.com/react-is@18/umd/react-is.development.js"></script>
+  <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
+  
+  <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.js"></script>
+  
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    // ─── IMPORTS (Mapped from Window Objects) ──────────────────────────────────
+    const { useState, useEffect, useCallback, useMemo } = React;
+    const {
+      AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+      LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+      ResponsiveContainer, Legend
+    } = window.Recharts;
+
+    // ─── DESIGN TOKENS ─────────────────────────────────────────────────────────
+    const C = {
+      bg:        "#0B0F1A", surface:   "#111827", card:      "#1C2333",
+      border:    "#2A3347", accent:    "#6C63FF", accentSoft:"#6C63FF22",
+      green:     "#10B981", greenSoft: "#10B98122", red:       "#EF4444",
+      redSoft:   "#EF444422", yellow:    "#F59E0B", yellowSoft:"#F59E0B22",
+      blue:      "#3B82F6", blueSoft:  "#3B82F622", pink:      "#EC4899",
+      text:      "#F1F5F9", muted:     "#8B9AB4", faint:     "#2A3347",
+    };
+
+    const CATEGORY_ICONS = {
+      Food:"🍕", Travel:"✈️", Shopping:"🛍️", Education:"📚", Health:"💊",
+      Entertainment:"🎬", Bills:"🧾", Salary:"💼", Freelance:"💻",
+      Investment:"📈", Gift:"🎁", Other:"📦", Rent:"🏠", EMI:"🏦", Subscription:"🔄"
+    };
+
+    const CATEGORY_COLORS = {
+      Food:"#EF4444", Travel:"#3B82F6", Shopping:"#EC4899", Education:"#8B5CF6",
+      Health:"#10B981", Entertainment:"#F59E0B", Bills:"#6B7280", Salary:"#10B981",
+      Freelance:"#6C63FF", Investment:"#14B8A6", Gift:"#F472B6", Other:"#94A3B8",
+      Rent:"#F97316", EMI:"#EF4444", Subscription:"#8B5CF6"
+    };
+
+    // ─── SEED DATA ─────────────────────────────────────────────────────────────
+    const SEED_TRANSACTIONS = [
+      {id:1,type:"income",category:"Salary",amount:75000,desc:"Monthly Salary",date:"2024-06-01",recurring:true},
+      {id:2,type:"income",category:"Freelance",amount:15000,desc:"Web Project",date:"2024-06-05",recurring:false},
+      {id:3,type:"expense",category:"Rent",amount:18000,desc:"House Rent",date:"2024-06-01",recurring:true},
+      {id:4,type:"expense",category:"Food",amount:4500,desc:"Groceries + Dining",date:"2024-06-03",recurring:false},
+      {id:5,type:"expense",category:"Travel",amount:2200,desc:"Cab + Petrol",date:"2024-06-07",recurring:false},
+      {id:6,type:"expense",category:"Entertainment",amount:1500,desc:"Netflix + Prime",date:"2024-06-08",recurring:true},
+      {id:7,type:"expense",category:"Health",amount:800,desc:"Gym Membership",date:"2024-06-10",recurring:true},
+      {id:8,type:"expense",category:"Shopping",amount:3200,desc:"Clothes",date:"2024-06-12",recurring:false},
+      {id:9,type:"expense",category:"Bills",amount:2100,desc:"Electricity + Internet",date:"2024-06-13",recurring:true},
+      {id:10,type:"expense",category:"EMI",amount:8500,desc:"Bike EMI",date:"2024-06-05",recurring:true},
+      {id:11,type:"income",category:"Investment",amount:3000,desc:"Mutual Fund Returns",date:"2024-06-15",recurring:false},
+      {id:12,type:"expense",category:"Food",amount:1200,desc:"Restaurant outing",date:"2024-06-17",recurring:false},
+      {id:13,type:"expense",category:"Education",amount:2500,desc:"Online Course",date:"2024-06-18",recurring:false},
+      {id:14,type:"expense",category:"Subscription",amount:600,desc:"Spotify + Notion",date:"2024-06-19",recurring:true},
+      {id:15,type:"income",category:"Freelance",amount:8000,desc:"Logo Design",date:"2024-06-20",recurring:false},
+    ];
+
+    const SEED_BUDGETS = {
+      Food:6000, Travel:3000, Shopping:5000, Education:3000,
+      Health:2000, Entertainment:2000, Bills:3000, EMI:10000,
+      Rent:20000, Subscription:1000, Other:2000
+    };
+
+    const SEED_GOALS = [
+      {id:1,name:"Buy Laptop",target:60000,saved:22000,icon:"💻",color:"#6C63FF",deadline:"2024-12-31"},
+      {id:2,name:"Bike Upgrade",target:120000,saved:45000,icon:"🏍️",color:"#EF4444",deadline:"2025-03-31"},
+      {id:3,name:"Emergency Fund",target:50000,saved:18000,icon:"🏥",color:"#10B981",deadline:"2024-10-31"},
+      {id:4,name:"Goa Trip",target:25000,saved:12000,icon:"✈️",color:"#3B82F6",deadline:"2024-09-15"},
+    ];
+
+    const MONTHLY_TREND = [
+      {month:"Jan",income:82000,expenses:54000},
+      {month:"Feb",income:75000,expenses:61000},
+      {month:"Mar",income:90000,expenses:58000},
+      {month:"Apr",income:78000,expenses:67000},
+      {month:"May",income:85000,expenses:52000},
+      {month:"Jun",income:93000,expenses:41100},
+    ];
+
+    // ─── HELPERS ───────────────────────────────────────────────────────────────
+    const fmt = (n) => "₹" + Number(n).toLocaleString("en-IN");
+    const pct = (a,b) => b ? Math.round((a/b)*100) : 0;
+    const uid = () => Date.now() + Math.random();
+
+    // ─── COMPONENTS ────────────────────────────────────────────────────────────
+
+    // Sidebar Nav
+    const NAV_ITEMS = [
+      {key:"dashboard",icon:"📊",label:"Dashboard"},
+      {key:"transactions",icon:"📋",label:"Transactions"},
+      {key:"budget",icon:"🎯",label:"Budget"},
+      {key:"goals",icon:"🏆",label:"Goals"},
+      {key:"reports",icon:"📈",label:"Reports"},
+      {key:"ai",icon:"🤖",label:"AI Insights"},
+      {key:"bills",icon:"🔔",label:"Bill Reminders"},
+      {key:"recurring",icon:"🔄",label:"Recurring"},
+      {key:"admin",icon:"🛡️",label:"Admin Panel"},
+    ];
+
+    function Sidebar({ active, onNav }) {
+      return (
+        <aside style={{
+          width:230, minHeight:"100vh", background:C.surface,
+          borderRight:`1px solid ${C.border}`, display:"flex",
+          flexDirection:"column", padding:"0 0 24px"
+        }}>
+          <div style={{padding:"28px 20px 24px", borderBottom:`1px solid ${C.border}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{
+                width:38, height:38, borderRadius:10, background:`linear-gradient(135deg,${C.accent},${C.pink})`,
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:18
+              }}>₹</div>
+              <div>
+                <div style={{color:C.text,fontWeight:700,fontSize:15,letterSpacing:"-0.3px"}}>FinSmart</div>
+                <div style={{color:C.muted,fontSize:11}}>Personal Finance</div>
+              </div>
+            </div>
+          </div>
+
+          <nav style={{flex:1,padding:"12px 10px"}}>
+            {NAV_ITEMS.map(item => (
+              <button key={item.key} onClick={() => onNav(item.key)} style={{
+                width:"100%", display:"flex", alignItems:"center", gap:10,
+                padding:"10px 12px", borderRadius:8, border:"none", cursor:"pointer",
+                background: active===item.key ? C.accentSoft : "transparent",
+                color: active===item.key ? C.accent : C.muted,
+                fontSize:13, fontWeight: active===item.key ? 600 : 400,
+                marginBottom:2, transition:"all .15s", textAlign:"left"
+              }}>
+                <span style={{fontSize:15}}>{item.icon}</span>
+                {item.label}
+              </button>
+            ))}
+          </nav>
+
+          <div style={{padding:"0 10px"}}>
+            <div style={{
+              background:C.card, borderRadius:10, padding:14,
+              border:`1px solid ${C.border}`
+            }}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                <div style={{
+                  width:32,height:32,borderRadius:"50%",
+                  background:`linear-gradient(135deg,${C.accent},${C.pink})`,
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontSize:14,fontWeight:700,color:"#fff"
+                }}>A</div>
+                <div>
+                  <div style={{color:C.text,fontSize:12,fontWeight:600}}>Aarav Mehta</div>
+                  <div style={{color:C.muted,fontSize:10}}>Premium Plan</div>
+                </div>
+              </div>
+              <div style={{
+                background:`linear-gradient(135deg,${C.accent}22,${C.pink}22)`,
+                borderRadius:6, padding:"4px 8px",
+                color:C.accent, fontSize:10, fontWeight:600,
+                border:`1px solid ${C.accent}44`
+              }}>✨ Pro Member</div>
+            </div>
+          </div>
+        </aside>
+      );
+    }
+
+    // Stat Card
+    function StatCard({label,value,change,icon,color,sub}) {
+      const up = change >= 0;
+      return (
+        <div style={{
+          background:C.card, borderRadius:14, padding:"20px 22px",
+          border:`1px solid ${C.border}`, flex:1, minWidth:160
+        }}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div>
+              <div style={{color:C.muted,fontSize:11,fontWeight:500,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>{label}</div>
+              <div style={{color:C.text,fontSize:22,fontWeight:700,letterSpacing:"-0.5px"}}>{value}</div>
+              {sub && <div style={{color:C.muted,fontSize:11,marginTop:3}}>{sub}</div>}
+            </div>
+            <div style={{
+              width:42,height:42,borderRadius:10,
+              background:color+"22",
+              display:"flex",alignItems:"center",justifyContent:"center",fontSize:20
+            }}>{icon}</div>
+          </div>
+          {change !== undefined && (
+            <div style={{
+              marginTop:12, display:"inline-flex", alignItems:"center", gap:4,
+              background: up ? C.greenSoft : C.redSoft,
+              color: up ? C.green : C.red,
+              borderRadius:20, padding:"2px 8px", fontSize:11, fontWeight:600
+            }}>
+              {up ? "▲" : "▼"} {Math.abs(change)}% vs last month
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ─── DASHBOARD ─────────────────────────────────────────────────────────────
+    function Dashboard({ transactions, budgets, goals }) {
+      const income = transactions.filter(t=>t.type==="income").reduce((a,t)=>a+t.amount,0);
+      const expenses = transactions.filter(t=>t.type==="expense").reduce((a,t)=>a+t.amount,0);
+      const balance = income - expenses;
+      const savings = income > 0 ? Math.round((balance/income)*100) : 0;
+
+      const expByCat = useMemo(() => {
+        const map = {};
+        transactions.filter(t=>t.type==="expense").forEach(t=>{
+          map[t.category]=(map[t.category]||0)+t.amount;
+        });
+        return Object.entries(map).map(([name,value])=>({name,value,color:CATEGORY_COLORS[name]||"#888"}));
+      },[transactions]);
+
+      const recentTx = [...transactions].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,6);
+
+      const savingsScore = Math.min(savings * 1.5, 40);
+      const budgetScore = 25;
+      const consistencyScore = 20;
+      const debtScore = 15;
+      const healthScore = Math.round(savingsScore + budgetScore + consistencyScore - debtScore + Math.random()*5);
+
+      return (
+        <div>
+          <div style={{marginBottom:24}}>
+            <h2 style={{color:C.text,fontSize:22,fontWeight:700,margin:0}}>Dashboard Overview</h2>
+            <p style={{color:C.muted,fontSize:13,margin:"4px 0 0"}}>June 2024 · Your financial snapshot</p>
+          </div>
+
+          <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:20}}>
+            <StatCard label="Total Balance" value={fmt(balance)} change={8} icon="💰" color={C.green} sub="Across all accounts" />
+            <StatCard label="Monthly Income" value={fmt(income)} change={12} icon="📥" color={C.blue} />
+            <StatCard label="Monthly Expenses" value={fmt(expenses)} change={-5} icon="📤" color={C.red} />
+            <StatCard label="Savings Rate" value={savings+"%"} change={3} icon="🏦" color={C.accent} sub={fmt(balance)+" saved"} />
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:16,marginBottom:16}}>
+            <div style={{background:C.card,borderRadius:14,padding:20,border:`1px solid ${C.border}`}}>
+              <div style={{color:C.text,fontWeight:600,marginBottom:16,fontSize:14}}>Income vs Expenses Trend</div>
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={MONTHLY_TREND}>
+                  <defs>
+                    <linearGradient id="gi" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={C.green} stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor={C.green} stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="ge" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={C.red} stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor={C.red} stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke={C.border} strokeDasharray="3 3"/>
+                  <XAxis dataKey="month" tick={{fill:C.muted,fontSize:11}} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{fill:C.muted,fontSize:11}} axisLine={false} tickLine={false} tickFormatter={v=>"₹"+v/1000+"k"}/>
+                  <Tooltip formatter={(v)=>fmt(v)} contentStyle={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,color:C.text}}/>
+                  <Area type="monotone" dataKey="income" stroke={C.green} fill="url(#gi)" strokeWidth={2} name="Income"/>
+                  <Area type="monotone" dataKey="expenses" stroke={C.red} fill="url(#ge)" strokeWidth={2} name="Expenses"/>
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div style={{background:C.card,borderRadius:14,padding:20,border:`1px solid ${C.border}`}}>
+              <div style={{color:C.text,fontWeight:600,marginBottom:8,fontSize:14}}>Expense Breakdown</div>
+              <ResponsiveContainer width="100%" height={160}>
+                <PieChart>
+                  <Pie data={expByCat} cx="50%" cy="50%" innerRadius={45} outerRadius={70} dataKey="value" paddingAngle={3}>
+                    {expByCat.map((e,i)=><Cell key={i} fill={e.color}/>)}
+                  </Pie>
+                  <Tooltip formatter={v=>fmt(v)} contentStyle={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,color:C.text}}/>
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{display:"flex",flexWrap:"wrap",gap:"4px 12px"}}>
+                {expByCat.slice(0,5).map(e=>(
+                  <div key={e.name} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:C.muted}}>
+                    <div style={{width:8,height:8,borderRadius:2,background:e.color}}/>
+                    {e.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+            <div style={{background:C.card,borderRadius:14,padding:20,border:`1px solid ${C.border}`}}>
+              <div style={{color:C.text,fontWeight:600,marginBottom:14,fontSize:14}}>Recent Transactions</div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {recentTx.map(t=>(
+                  <div key={t.id} style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{
+                      width:36,height:36,borderRadius:9,fontSize:16,
+                      background:(t.type==="income"?C.greenSoft:C.redSoft),
+                      display:"flex",alignItems:"center",justifyContent:"center"
+                    }}>{CATEGORY_ICONS[t.category]||"💰"}</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{color:C.text,fontSize:12,fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.desc}</div>
+                      <div style={{color:C.muted,fontSize:10}}>{t.category} · {t.date}</div>
+                    </div>
+                    <div style={{
+                      color:t.type==="income"?C.green:C.red,
+                      fontWeight:600,fontSize:13,whiteSpace:"nowrap"
+                    }}>{t.type==="income"?"+":"-"}{fmt(t.amount)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div style={{background:C.card,borderRadius:14,padding:20,border:`1px solid ${C.border}`}}>
+                <div style={{color:C.text,fontWeight:600,marginBottom:12,fontSize:14}}>Financial Health Score</div>
+                <div style={{display:"flex",alignItems:"center",gap:16}}>
+                  <div style={{position:"relative",width:80,height:80}}>
+                    <svg width="80" height="80" viewBox="0 0 80 80">
+                      <circle cx="40" cy="40" r="34" fill="none" stroke={C.border} strokeWidth="8"/>
+                      <circle cx="40" cy="40" r="34" fill="none"
+                        stroke={healthScore>70?C.green:healthScore>45?C.yellow:C.red}
+                        strokeWidth="8" strokeLinecap="round"
+                        strokeDasharray={`${(healthScore/100)*213.6} 213.6`}
+                        transform="rotate(-90 40 40)"
+                      />
+                    </svg>
+                    <div style={{
+                      position:"absolute",inset:0,display:"flex",alignItems:"center",
+                      justifyContent:"center",color:C.text,fontWeight:700,fontSize:18
+                    }}>{healthScore}</div>
+                  </div>
+                  <div>
+                    <div style={{color:healthScore>70?C.green:C.yellow,fontWeight:700,fontSize:15}}>
+                      {healthScore>70?"Good 👍":healthScore>45?"Fair ⚠️":"Needs Work 🔴"}
+                    </div>
+                    <div style={{color:C.muted,fontSize:11,marginTop:4}}>Based on savings, budget discipline & spending</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{background:C.card,borderRadius:14,padding:20,border:`1px solid ${C.border}`}}>
+                <div style={{color:C.text,fontWeight:600,marginBottom:12,fontSize:14}}>Top Savings Goals</div>
+                {goals.slice(0,2).map(g=>{
+                  const p = pct(g.saved,g.target);
+                  return (
+                    <div key={g.id} style={{marginBottom:12}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                        <div style={{color:C.text,fontSize:12}}>{g.icon} {g.name}</div>
+                        <div style={{color:C.muted,fontSize:11}}>{p}%</div>
+                      </div>
+                      <div style={{background:C.border,borderRadius:4,height:6}}>
+                        <div style={{
+                          width:p+"%",height:"100%",borderRadius:4,
+                          background:`linear-gradient(90deg,${g.color},${g.color}88)`
+                        }}/>
+                      </div>
+                      <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
+                        <div style={{color:C.muted,fontSize:10}}>{fmt(g.saved)} saved</div>
+                        <div style={{color:C.muted,fontSize:10}}>Goal: {fmt(g.target)}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── TRANSACTIONS ──────────────────────────────────────────────────────────
+    function Transactions({ transactions, onAdd, onDelete }) {
+      const [search, setSearch] = useState("");
+      const [filterCat, setFilterCat] = useState("All");
+      const [filterType, setFilterType] = useState("All");
+      const [showForm, setShowForm] = useState(false);
+      const [form, setForm] = useState({type:"expense",category:"Food",amount:"",desc:"",date:new Date().toISOString().slice(0,10)});
+
+      const cats = ["All",...new Set(transactions.map(t=>t.category))];
+      const filtered = transactions.filter(t=>{
+        if(filterCat!=="All" && t.category!==filterCat) return false;
+        if(filterType!=="All" && t.type!==filterType) return false;
+        if(search && !t.desc.toLowerCase().includes(search.toLowerCase())) return false;
+        return true;
+      }).sort((a,b)=>new Date(b.date)-new Date(a.date));
+
+      const handleAdd = () => {
+        if(!form.amount||!form.desc) return;
+        onAdd({...form,id:uid(),amount:parseFloat(form.amount)});
+        setForm({type:"expense",category:"Food",amount:"",desc:"",date:new Date().toISOString().slice(0,10)});
+        setShowForm(false);
+      };
+
+      const inputStyle = {
+        background:C.surface, border:`1px solid ${C.border}`, borderRadius:8,
+        padding:"9px 12px", color:C.text, fontSize:13, outline:"none", width:"100%",
+        boxSizing:"border-box"
+      };
+
+      return (
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <div>
+              <h2 style={{color:C.text,fontSize:22,fontWeight:700,margin:0}}>Transactions</h2>
+              <p style={{color:C.muted,fontSize:13,margin:"4px 0 0"}}>{filtered.length} transactions found</p>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setShowForm(!showForm)} style={{
+                background:C.accent, border:"none", borderRadius:8,
+                padding:"9px 16px", color:"#fff", fontSize:12, cursor:"pointer", fontWeight:600
+              }}>+ Add Transaction</button>
+            </div>
+          </div>
+
+          {showForm && (
+            <div style={{background:C.card,borderRadius:14,padding:20,border:`1px solid ${C.border}`,marginBottom:16}}>
+              <div style={{color:C.text,fontWeight:600,marginBottom:14}}>New Transaction</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} style={inputStyle}>
+                  <option value="expense">Expense</option>
+                  <option value="income">Income</option>
+                </select>
+                <select value={form.category} onChange={e=>setForm({...form,category:e.target.value})} style={inputStyle}>
+                  {Object.keys(CATEGORY_ICONS).map(c=><option key={c}>{c}</option>)}
+                </select>
+                <input type="number" placeholder="Amount (₹)" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} style={inputStyle}/>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:10,marginBottom:12}}>
+                <input type="text" placeholder="Description" value={form.desc} onChange={e=>setForm({...form,desc:e.target.value})} style={inputStyle}/>
+                <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} style={inputStyle}/>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={handleAdd} style={{
+                  background:C.accent, border:"none", borderRadius:8, padding:"9px 20px",
+                  color:"#fff", fontSize:13, cursor:"pointer", fontWeight:600
+                }}>Add</button>
+                <button onClick={()=>setShowForm(false)} style={{
+                  background:"transparent", border:`1px solid ${C.border}`, borderRadius:8,
+                  padding:"9px 16px", color:C.muted, fontSize:13, cursor:"pointer"
+                }}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+            <input placeholder="🔍 Search..." value={search} onChange={e=>setSearch(e.target.value)} style={{
+              background:C.card, border:`1px solid ${C.border}`, borderRadius:8,
+              padding:"8px 12px", color:C.text, fontSize:13, outline:"none", width:200
+            }}/>
+            {["All","income","expense"].map(t=>(
+              <button key={t} onClick={()=>setFilterType(t)} style={{
+                background: filterType===t ? C.accent : C.card,
+                border:`1px solid ${filterType===t?C.accent:C.border}`,
+                borderRadius:8, padding:"7px 14px", color: filterType===t?"#fff":C.muted,
+                fontSize:12, cursor:"pointer", textTransform:"capitalize"
+              }}>{t}</button>
+            ))}
+            <select value={filterCat} onChange={e=>setFilterCat(e.target.value)} style={{
+              background:C.card, border:`1px solid ${C.border}`, borderRadius:8,
+              padding:"7px 12px", color:C.muted, fontSize:12, cursor:"pointer"
+            }}>
+              {cats.map(c=><option key={c}>{c}</option>)}
+            </select>
+          </div>
+
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,overflow:"hidden"}}>
+            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr auto",
+              padding:"10px 16px", borderBottom:`1px solid ${C.border}`,
+              color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>
+              <div>Description</div><div>Category</div><div>Date</div><div>Amount</div><div></div>
+            </div>
+            {filtered.map(t=>(
+              <div key={t.id} style={{
+                display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr auto",
+                padding:"12px 16px", borderBottom:`1px solid ${C.border}22`,
+                alignItems:"center"
+              }}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{
+                    width:32,height:32,borderRadius:8,
+                    background:t.type==="income"?C.greenSoft:C.redSoft,
+                    display:"flex",alignItems:"center",justifyContent:"center",fontSize:14
+                  }}>{CATEGORY_ICONS[t.category]||"💰"}</div>
+                  <div>
+                    <div style={{color:C.text,fontSize:13}}>{t.desc}</div>
+                    {t.recurring && <div style={{color:C.accent,fontSize:10}}>🔄 Recurring</div>}
+                  </div>
+                </div>
+                <div>
+                  <span style={{
+                    background:CATEGORY_COLORS[t.category]+"22",
+                    color:CATEGORY_COLORS[t.category]||C.muted,
+                    padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:500
+                  }}>{t.category}</span>
+                </div>
+                <div style={{color:C.muted,fontSize:12}}>{t.date}</div>
+                <div style={{
+                  color:t.type==="income"?C.green:C.red,
+                  fontWeight:600,fontSize:13
+                }}>{t.type==="income"?"+":"-"}{fmt(t.amount)}</div>
+                <button onClick={()=>onDelete(t.id)} style={{
+                  background:"transparent",border:"none",cursor:"pointer",
+                  color:C.muted,fontSize:16,padding:"0 4px"
+                }}>🗑</button>
+              </div>
+            ))}
+            {filtered.length===0 && (
+              <div style={{padding:40,textAlign:"center",color:C.muted,fontSize:13}}>
+                No transactions found. Try adjusting filters.
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── BUDGET ──────────────────────────────────────────────────────────────────
+    function Budget({ transactions, budgets, onUpdateBudget }) {
+      const [editing, setEditing] = useState(null);
+      const [editVal, setEditVal] = useState("");
+
+      const expByCat = useMemo(()=>{
+        const map = {};
+        transactions.filter(t=>t.type==="expense").forEach(t=>{
+          map[t.category]=(map[t.category]||0)+t.amount;
+        });
+        return map;
+      },[transactions]);
+
+      const totalBudget = Object.values(budgets).reduce((a,b)=>a+b,0);
+      const totalSpent = Object.values(expByCat).reduce((a,b)=>a+b,0);
+
+      return (
+        <div>
+          <div style={{marginBottom:24}}>
+            <h2 style={{color:C.text,fontSize:22,fontWeight:700,margin:0}}>Budget Planner</h2>
+            <p style={{color:C.muted,fontSize:13,margin:"4px 0 0"}}>Set and track your monthly category budgets</p>
+          </div>
+
+          <div style={{display:"flex",gap:14,marginBottom:20}}>
+            <StatCard label="Total Budget" value={fmt(totalBudget)} icon="🎯" color={C.accent} />
+            <StatCard label="Total Spent" value={fmt(totalSpent)} icon="📤" color={C.red} change={totalSpent>totalBudget?20:-5} />
+            <StatCard label="Remaining" value={fmt(Math.max(0,totalBudget-totalSpent))} icon="💰" color={C.green} />
+            <StatCard label="Overspent Categories" value={Object.keys(budgets).filter(c=>(expByCat[c]||0)>budgets[c]).length} icon="⚠️" color={C.yellow} />
+          </div>
+
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:20}}>
+            <div style={{color:C.text,fontWeight:600,marginBottom:16}}>Category Budgets</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+              {Object.entries(budgets).map(([cat,budget])=>{
+                const spent = expByCat[cat]||0;
+                const p = Math.min(pct(spent,budget),100);
+                const over = spent > budget;
+                return (
+                  <div key={cat} style={{
+                    background:C.surface,borderRadius:10,padding:14,
+                    border:`1px solid ${over?C.red+"44":C.border}`
+                  }}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{fontSize:18}}>{CATEGORY_ICONS[cat]||"📦"}</span>
+                        <span style={{color:C.text,fontSize:13,fontWeight:500}}>{cat}</span>
+                        {over && <span style={{color:C.red,fontSize:10,fontWeight:600}}>OVER</span>}
+                      </div>
+                      <button onClick={()=>{setEditing(cat);setEditVal(budget)}} style={{
+                        background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:12
+                      }}>✏️</button>
+                    </div>
+                    {editing===cat ? (
+                      <div style={{display:"flex",gap:6,marginBottom:8}}>
+                        <input type="number" value={editVal} onChange={e=>setEditVal(e.target.value)} style={{
+                          background:C.card,border:`1px solid ${C.border}`,borderRadius:6,
+                          padding:"6px 10px",color:C.text,fontSize:12,flex:1,outline:"none"
+                        }}/>
+                        <button onClick={()=>{onUpdateBudget(cat,parseFloat(editVal));setEditing(null)}} style={{
+                          background:C.accent,border:"none",borderRadius:6,padding:"6px 12px",
+                          color:"#fff",fontSize:11,cursor:"pointer"
+                        }}>✓</button>
+                        <button onClick={()=>setEditing(null)} style={{
+                          background:C.card,border:`1px solid ${C.border}`,borderRadius:6,
+                          padding:"6px 10px",color:C.muted,fontSize:11,cursor:"pointer"
+                        }}>✕</button>
+                      </div>
+                    ):(
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                        <span style={{color:C.muted,fontSize:11}}>{fmt(spent)} spent</span>
+                        <span style={{color:C.muted,fontSize:11}}>of {fmt(budget)}</span>
+                      </div>
+                    )}
+                    <div style={{background:C.border,borderRadius:4,height:6}}>
+                      <div style={{
+                        width:p+"%",height:"100%",borderRadius:4,
+                        background:over?C.red:p>80?C.yellow:C.green,
+                        transition:"width .5s"
+                      }}/>
+                    </div>
+                    <div style={{
+                      color:over?C.red:C.green,fontSize:10,fontWeight:600,marginTop:4
+                    }}>
+                      {over ? `⚠️ Over by ${fmt(spent-budget)}` : `${fmt(budget-spent)} remaining`}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── GOALS ─────────────────────────────────────────────────────────────────
+    function Goals({ goals, onAddGoal, onContribute }) {
+      const [showForm, setShowForm] = useState(false);
+      const [form, setForm] = useState({name:"",target:"",icon:"🎯",color:C.accent,deadline:""});
+      const [contributing, setContributing] = useState(null);
+      const [contAmt, setContAmt] = useState("");
+
+      const inputStyle = {
+        background:C.surface, border:`1px solid ${C.border}`, borderRadius:8,
+        padding:"9px 12px", color:C.text, fontSize:13, outline:"none", width:"100%",
+        boxSizing:"border-box"
+      };
+
+      return (
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <div>
+              <h2 style={{color:C.text,fontSize:22,fontWeight:700,margin:0}}>Savings Goals</h2>
+              <p style={{color:C.muted,fontSize:13,margin:"4px 0 0"}}>Track your financial dreams</p>
+            </div>
+            <button onClick={()=>setShowForm(!showForm)} style={{
+              background:C.accent,border:"none",borderRadius:8,
+              padding:"9px 16px",color:"#fff",fontSize:12,cursor:"pointer",fontWeight:600
+            }}>+ New Goal</button>
+          </div>
+
+          {showForm && (
+            <div style={{background:C.card,borderRadius:14,padding:20,border:`1px solid ${C.border}`,marginBottom:16}}>
+              <div style={{color:C.text,fontWeight:600,marginBottom:14}}>Create New Goal</div>
+              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:10}}>
+                <input placeholder="Goal name (e.g. Buy Laptop)" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} style={inputStyle}/>
+                <input type="number" placeholder="Target amount" value={form.target} onChange={e=>setForm({...form,target:e.target.value})} style={inputStyle}/>
+                <input type="date" value={form.deadline} onChange={e=>setForm({...form,deadline:e.target.value})} style={inputStyle}/>
+              </div>
+              <div style={{display:"flex",gap:10,marginBottom:12}}>
+                {["💻","🏍️","🏠","✈️","📱","💰","🎓","🏥","🚗","🎮"].map(i=>(
+                  <button key={i} onClick={()=>setForm({...form,icon:i})} style={{
+                    background:form.icon===i?C.accent:C.surface,
+                    border:`1px solid ${form.icon===i?C.accent:C.border}`,
+                    borderRadius:8,padding:"8px 10px",cursor:"pointer",fontSize:18
+                  }}>{i}</button>
+                ))}
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>{if(form.name&&form.target){onAddGoal({...form,id:uid(),target:parseFloat(form.target),saved:0});setShowForm(false);}}} style={{
+                  background:C.accent,border:"none",borderRadius:8,padding:"9px 20px",
+                  color:"#fff",fontSize:13,cursor:"pointer",fontWeight:600
+                }}>Create Goal</button>
+                <button onClick={()=>setShowForm(false)} style={{
+                  background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,
+                  padding:"9px 16px",color:C.muted,fontSize:13,cursor:"pointer"
+                }}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+            {goals.map(g=>{
+              const p = pct(g.saved,g.target);
+              const remaining = g.target - g.saved;
+              const daysLeft = g.deadline ? Math.max(0,Math.round((new Date(g.deadline)-new Date())/(1000*60*60*24))) : null;
+              const monthlyNeeded = daysLeft && daysLeft > 0 ? Math.ceil(remaining/(daysLeft/30)) : null;
+
+              return (
+                <div key={g.id} style={{
+                  background:C.card,borderRadius:14,padding:22,
+                  border:`1px solid ${C.border}`,
+                  backgroundImage:`linear-gradient(135deg,${g.color}08,transparent)`
+                }}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <div style={{
+                        width:44,height:44,borderRadius:12,
+                        background:g.color+"22",
+                        display:"flex",alignItems:"center",justifyContent:"center",fontSize:22
+                      }}>{g.icon}</div>
+                      <div>
+                        <div style={{color:C.text,fontWeight:600,fontSize:14}}>{g.name}</div>
+                        {g.deadline && <div style={{color:C.muted,fontSize:10}}>{daysLeft} days left</div>}
+                      </div>
+                    </div>
+                    <div style={{
+                      background:g.color+"22",color:g.color,
+                      fontSize:20,fontWeight:800,borderRadius:8,padding:"4px 10px"
+                    }}>{p}%</div>
+                  </div>
+
+                  <div style={{marginBottom:10}}>
+                    <div style={{background:C.border,borderRadius:6,height:8,marginBottom:6}}>
+                      <div style={{
+                        width:p+"%",height:"100%",borderRadius:6,
+                        background:`linear-gradient(90deg,${g.color},${g.color}88)`,
+                        transition:"width .5s"
+                      }}/>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between"}}>
+                      <span style={{color:C.green,fontSize:12,fontWeight:600}}>{fmt(g.saved)} saved</span>
+                      <span style={{color:C.muted,fontSize:12}}>{fmt(g.target)} goal</span>
+                    </div>
+                  </div>
+
+                  {monthlyNeeded && (
+                    <div style={{
+                      background:C.surface,borderRadius:8,padding:"8px 12px",
+                      fontSize:11,color:C.muted,marginBottom:10
+                    }}>
+                      💡 Save <span style={{color:C.accent,fontWeight:600}}>{fmt(monthlyNeeded)}/month</span> to reach goal on time
+                    </div>
+                  )}
+
+                  {contributing===g.id ? (
+                    <div style={{display:"flex",gap:6}}>
+                      <input type="number" placeholder="Contribute ₹" value={contAmt} onChange={e=>setContAmt(e.target.value)} style={{
+                        background:C.surface,border:`1px solid ${C.border}`,borderRadius:7,
+                        padding:"7px 10px",color:C.text,fontSize:12,flex:1,outline:"none"
+                      }}/>
+                      <button onClick={()=>{onContribute(g.id,parseFloat(contAmt)||0);setContributing(null);setContAmt("");}} style={{
+                        background:g.color,border:"none",borderRadius:7,padding:"7px 14px",
+                        color:"#fff",fontSize:12,cursor:"pointer"
+                      }}>Add</button>
+                      <button onClick={()=>setContributing(null)} style={{
+                        background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,
+                        padding:"7px 10px",color:C.muted,fontSize:12,cursor:"pointer"
+                      }}>✕</button>
+                    </div>
+                  ):(
+                    <button onClick={()=>setContributing(g.id)} style={{
+                      background:g.color+"22",border:`1px solid ${g.color}44`,
+                      borderRadius:8,padding:"8px 14px",color:g.color,
+                      fontSize:12,cursor:"pointer",fontWeight:600,width:"100%"
+                    }}>+ Contribute Savings</button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── REPORTS ───────────────────────────────────────────────────────────────
+    function Reports({ transactions }) {
+      const [period, setPeriod] = useState("monthly");
+
+      const barData = MONTHLY_TREND;
+      const expByCat = useMemo(()=>{
+        const map = {};
+        transactions.filter(t=>t.type==="expense").forEach(t=>{
+          map[t.category]=(map[t.category]||0)+t.amount;
+        });
+        return Object.entries(map).map(([name,value])=>({name,value,color:CATEGORY_COLORS[name]||"#888"}))
+          .sort((a,b)=>b.value-a.value);
+      },[transactions]);
+
+      const weeklyData = [
+        {day:"Mon",amount:1200},{day:"Tue",amount:800},{day:"Wed",amount:2100},
+        {day:"Thu",amount:450},{day:"Fri",amount:3200},{day:"Sat",amount:1800},{day:"Sun",amount:600}
+      ];
+
+      return (
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <div>
+              <h2 style={{color:C.text,fontSize:22,fontWeight:700,margin:0}}>Financial Reports</h2>
+              <p style={{color:C.muted,fontSize:13,margin:"4px 0 0"}}>Detailed analysis of your finances</p>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              {["weekly","monthly","yearly"].map(p=>(
+                <button key={p} onClick={()=>setPeriod(p)} style={{
+                  background:period===p?C.accent:C.card,
+                  border:`1px solid ${period===p?C.accent:C.border}`,
+                  borderRadius:8,padding:"7px 14px",
+                  color:period===p?"#fff":C.muted,fontSize:12,cursor:"pointer",textTransform:"capitalize"
+                }}>{p}</button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+            <div style={{background:C.card,borderRadius:14,padding:20,border:`1px solid ${C.border}`}}>
+              <div style={{color:C.text,fontWeight:600,marginBottom:14,fontSize:14}}>Income vs Expenses (Monthly)</div>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={barData}>
+                  <CartesianGrid stroke={C.border} strokeDasharray="3 3"/>
+                  <XAxis dataKey="month" tick={{fill:C.muted,fontSize:11}} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{fill:C.muted,fontSize:11}} axisLine={false} tickLine={false} tickFormatter={v=>"₹"+v/1000+"k"}/>
+                  <Tooltip formatter={v=>fmt(v)} contentStyle={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,color:C.text}}/>
+                  <Legend wrapperStyle={{color:C.muted,fontSize:11}}/>
+                  <Bar dataKey="income" fill={C.green} radius={[4,4,0,0]} name="Income"/>
+                  <Bar dataKey="expenses" fill={C.red} radius={[4,4,0,0]} name="Expenses"/>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div style={{background:C.card,borderRadius:14,padding:20,border:`1px solid ${C.border}`}}>
+              <div style={{color:C.text,fontWeight:600,marginBottom:14,fontSize:14}}>Weekly Spending Pattern</div>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={weeklyData}>
+                  <CartesianGrid stroke={C.border} strokeDasharray="3 3"/>
+                  <XAxis dataKey="day" tick={{fill:C.muted,fontSize:11}} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{fill:C.muted,fontSize:11}} axisLine={false} tickLine={false} tickFormatter={v=>"₹"+v}/>
+                  <Tooltip formatter={v=>fmt(v)} contentStyle={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,color:C.text}}/>
+                  <Line type="monotone" dataKey="amount" stroke={C.accent} strokeWidth={2} dot={{fill:C.accent,r:4}} name="Spent"/>
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div style={{background:C.card,borderRadius:14,padding:20,border:`1px solid ${C.border}`}}>
+            <div style={{color:C.text,fontWeight:600,marginBottom:14,fontSize:14}}>Top Spending Categories</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {expByCat.map((cat,i)=>{
+                const max = expByCat[0]?.value||1;
+                return (
+                  <div key={cat.name} style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{color:C.muted,fontSize:11,width:24,textAlign:"right"}}>{i+1}</div>
+                    <div style={{fontSize:16}}>{CATEGORY_ICONS[cat.name]||"📦"}</div>
+                    <div style={{width:90,color:C.text,fontSize:12}}>{cat.name}</div>
+                    <div style={{flex:1,background:C.border,borderRadius:4,height:8}}>
+                      <div style={{
+                        width:pct(cat.value,max)+"%",height:"100%",
+                        borderRadius:4,background:cat.color
+                      }}/>
+                    </div>
+                    <div style={{color:C.text,fontWeight:600,fontSize:13,width:80,textAlign:"right"}}>{fmt(cat.value)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── AI INSIGHTS ───────────────────────────────────────────────────────────
+    function AIInsights({ transactions, goals }) {
+      const [loading, setLoading] = useState(false);
+      const [insights, setInsights] = useState(null);
+
+      const income = transactions.filter(t=>t.type==="income").reduce((a,t)=>a+t.amount,0);
+      const expenses = transactions.filter(t=>t.type==="expense").reduce((a,t)=>a+t.amount,0);
+      const expByCat = {};
+      transactions.filter(t=>t.type==="expense").forEach(t=>{
+        expByCat[t.category]=(expByCat[t.category]||0)+t.amount;
+      });
+
+      const fetchInsights = async () => {
+        setLoading(true);
+        // Simulating AI Request
+        setTimeout(() => {
+          setInsights({
+            healthScore:72, healthLabel:"Good",
+            topInsights:[
+              {type:"warning",title:"Food Spending Up",message:"You spent ₹5,700 on food this month, which is 35% more than last month's ₹4,200. Consider meal prepping to reduce restaurant visits.",icon:"🍕"},
+              {type:"success",title:"Strong Savings Rate",message:"Your 26% savings rate is well above the recommended 20%. Keep maintaining this discipline to build wealth faster.",icon:"💪"},
+              {type:"tip",title:"Subscription Audit",message:"You have ₹600 in subscriptions. Review if all are actively used — cancelling unused ones could save ₹2,400/year.",icon:"🔄"},
+              {type:"warning",title:"EMI Load",message:"Your EMI payments are ₹8,500/month (9% of income). This is manageable but try to avoid taking new loans.",icon:"🏦"}
+            ],
+            savingsSuggestions:[
+              {goal:"Buy Laptop",suggestion:"Reduce food spending by ₹2,000/month to reach your laptop goal 2 months earlier.",impact:"2 months faster"},
+              {goal:"Emergency Fund",suggestion:"Set up an auto-transfer of ₹3,000 every payday to a separate savings account.",impact:"Reach goal by Sep 2024"}
+            ],
+            spendingAlerts:[
+              {category:"Food",message:"35% increase compared to last month",severity:"high"},
+              {category:"Shopping",message:"Close to budget limit",severity:"medium"}
+            ],
+            nextMonthPrediction:{
+              estimatedExpenses:43500,
+              highRiskCategories:["Food","Shopping"],
+              savingsPotential:8500
+            }
+          });
+          setLoading(false);
+        }, 1500);
+      };
+
+      const typeColor = {warning:C.yellow,success:C.green,tip:C.blue};
+      const typeBg = {warning:C.yellowSoft,success:C.greenSoft,tip:C.blueSoft};
+
+      return (
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <div>
+              <h2 style={{color:C.text,fontSize:22,fontWeight:700,margin:0}}>AI Financial Insights</h2>
+              <p style={{color:C.muted,fontSize:13,margin:"4px 0 0"}}>Powered by Claude AI · Personalized analysis</p>
+            </div>
+            <button onClick={fetchInsights} disabled={loading} style={{
+              background:`linear-gradient(135deg,${C.accent},${C.pink})`,
+              border:"none",borderRadius:8,padding:"10px 20px",
+              color:"#fff",fontSize:13,cursor:"pointer",fontWeight:600,
+              opacity:loading?0.7:1
+            }}>{loading?"🔄 Analyzing...":"✨ Get AI Insights"}</button>
+          </div>
+
+          {!insights && !loading && (
+            <div style={{
+              background:C.card,borderRadius:14,border:`1px solid ${C.border}`,
+              padding:60,textAlign:"center"
+            }}>
+              <div style={{fontSize:56,marginBottom:16}}>🤖</div>
+              <div style={{color:C.text,fontSize:18,fontWeight:600,marginBottom:8}}>AI-Powered Finance Advisor</div>
+              <div style={{color:C.muted,fontSize:13,maxWidth:400,margin:"0 auto 20px"}}>
+                Get personalized spending analysis, savings suggestions, budget alerts, and next-month expense predictions based on your real transaction data.
+              </div>
+              <button onClick={fetchInsights} style={{
+                background:`linear-gradient(135deg,${C.accent},${C.pink})`,
+                border:"none",borderRadius:10,padding:"12px 28px",
+                color:"#fff",fontSize:14,cursor:"pointer",fontWeight:600
+              }}>✨ Analyze My Finances</button>
+            </div>
+          )}
+
+          {loading && (
+            <div style={{
+              background:C.card,borderRadius:14,border:`1px solid ${C.border}`,
+              padding:60,textAlign:"center"
+            }}>
+              <div style={{fontSize:40,marginBottom:12,animation:"spin 1s linear infinite"}}>🔄</div>
+              <div style={{color:C.text,fontSize:15,fontWeight:600}}>Analyzing your financial patterns...</div>
+              <div style={{color:C.muted,fontSize:12,marginTop:6}}>Claude AI is reviewing your spending data</div>
+            </div>
+          )}
+
+          {insights && !loading && (
+            <div>
+              <div style={{
+                background:`linear-gradient(135deg,${C.card},${C.accent}11)`,
+                borderRadius:14,padding:22,border:`1px solid ${C.border}`,
+                marginBottom:16,display:"flex",alignItems:"center",gap:24
+              }}>
+                <div style={{position:"relative",width:90,height:90,flexShrink:0}}>
+                  <svg width="90" height="90" viewBox="0 0 90 90">
+                    <circle cx="45" cy="45" r="38" fill="none" stroke={C.border} strokeWidth="9"/>
+                    <circle cx="45" cy="45" r="38" fill="none"
+                      stroke={insights.healthScore>70?C.green:insights.healthScore>45?C.yellow:C.red}
+                      strokeWidth="9" strokeLinecap="round"
+                      strokeDasharray={`${(insights.healthScore/100)*238.8} 238.8`}
+                      transform="rotate(-90 45 45)"
+                    />
+                  </svg>
+                  <div style={{
+                    position:"absolute",inset:0,display:"flex",alignItems:"center",
+                    justifyContent:"center",flexDirection:"column"
+                  }}>
+                    <div style={{color:C.text,fontWeight:800,fontSize:20}}>{insights.healthScore}</div>
+                    <div style={{color:C.muted,fontSize:9}}>/ 100</div>
+                  </div>
+                </div>
+                <div>
+                  <div style={{color:C.accent,fontSize:12,fontWeight:600,marginBottom:4}}>FINANCIAL HEALTH SCORE</div>
+                  <div style={{color:C.text,fontSize:24,fontWeight:700,marginBottom:4}}>{insights.healthLabel} 🎯</div>
+                  <div style={{color:C.muted,fontSize:12}}>Based on savings rate, budget discipline, spending patterns, and debt load</div>
+                </div>
+              </div>
+
+              {insights.nextMonthPrediction && (
+                <div style={{
+                  background:C.card,borderRadius:14,padding:20,border:`1px solid ${C.border}`,marginBottom:16
+                }}>
+                  <div style={{color:C.text,fontWeight:600,marginBottom:14,fontSize:14}}>🔮 Next Month Prediction</div>
+                  <div style={{display:"flex",gap:16}}>
+                    <div style={{flex:1,background:C.redSoft,borderRadius:10,padding:14}}>
+                      <div style={{color:C.muted,fontSize:11,marginBottom:4}}>Estimated Expenses</div>
+                      <div style={{color:C.red,fontSize:20,fontWeight:700}}>{fmt(insights.nextMonthPrediction.estimatedExpenses)}</div>
+                    </div>
+                    <div style={{flex:1,background:C.greenSoft,borderRadius:10,padding:14}}>
+                      <div style={{color:C.muted,fontSize:11,marginBottom:4}}>Savings Potential</div>
+                      <div style={{color:C.green,fontSize:20,fontWeight:700}}>{fmt(insights.nextMonthPrediction.savingsPotential)}</div>
+                    </div>
+                    <div style={{flex:1,background:C.yellowSoft,borderRadius:10,padding:14}}>
+                      <div style={{color:C.muted,fontSize:11,marginBottom:4}}>High Risk Categories</div>
+                      <div style={{color:C.yellow,fontSize:13,fontWeight:600}}>{insights.nextMonthPrediction.highRiskCategories?.join(", ")}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{background:C.card,borderRadius:14,padding:20,border:`1px solid ${C.border}`,marginBottom:16}}>
+                <div style={{color:C.text,fontWeight:600,marginBottom:14,fontSize:14}}>💡 Key Insights</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  {insights.topInsights?.map((ins,i)=>(
+                    <div key={i} style={{
+                      background:typeBg[ins.type]||C.surface,
+                      borderRadius:10,padding:14,
+                      border:`1px solid ${typeColor[ins.type]||C.border}44`
+                    }}>
+                      <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+                        <span style={{fontSize:20}}>{ins.icon}</span>
+                        <div>
+                          <div style={{color:typeColor[ins.type]||C.text,fontWeight:600,fontSize:12,marginBottom:4}}>{ins.title}</div>
+                          <div style={{color:C.muted,fontSize:11,lineHeight:1.5}}>{ins.message}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ─── BILLS ─────────────────────────────────────────────────────────────────
+    function Bills() {
+      const [bills, setBills] = useState([
+        {id:1,name:"Electricity Bill",amount:1200,dueDate:"2024-06-25",category:"Bills",status:"pending",icon:"⚡"},
+        {id:2,name:"Internet",amount:699,dueDate:"2024-06-20",category:"Bills",status:"paid",icon:"🌐"},
+        {id:3,name:"Netflix",amount:649,dueDate:"2024-06-28",category:"Subscription",status:"pending",icon:"🎬"},
+        {id:4,name:"Gym Membership",amount:800,dueDate:"2024-07-01",category:"Health",status:"pending",icon:"💪"},
+        {id:5,name:"Mobile Recharge",amount:299,dueDate:"2024-06-18",category:"Bills",status:"overdue",icon:"📱"},
+      ]);
+
+      const statusColor = {pending:C.yellow,paid:C.green,overdue:C.red};
+      const statusBg = {pending:C.yellowSoft,paid:C.greenSoft,overdue:C.redSoft};
+
+      const upcoming = bills.filter(b=>b.status==="pending");
+      const overdue = bills.filter(b=>b.status==="overdue");
+      const paid = bills.filter(b=>b.status==="paid");
+
+      return (
+        <div>
+          <div style={{marginBottom:20}}>
+            <h2 style={{color:C.text,fontSize:22,fontWeight:700,margin:0}}>Bill Reminders</h2>
+            <p style={{color:C.muted,fontSize:13,margin:"4px 0 0"}}>Never miss a payment deadline</p>
+          </div>
+
+          <div style={{display:"flex",gap:14,marginBottom:20}}>
+            <StatCard label="Upcoming Bills" value={upcoming.length} icon="🔔" color={C.yellow} sub={fmt(upcoming.reduce((a,b)=>a+b.amount,0))+" due"} />
+            <StatCard label="Overdue" value={overdue.length} icon="⚠️" color={C.red} sub={fmt(overdue.reduce((a,b)=>a+b.amount,0))+" overdue"} />
+            <StatCard label="Paid This Month" value={paid.length} icon="✅" color={C.green} sub={fmt(paid.reduce((a,b)=>a+b.amount,0))+" paid"} />
+          </div>
+
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:20}}>
+            {overdue.length > 0 && (
+              <div style={{
+                background:C.redSoft,borderRadius:10,padding:12,marginBottom:16,
+                border:`1px solid ${C.red}44`,display:"flex",alignItems:"center",gap:10
+              }}>
+                <span style={{fontSize:20}}>🚨</span>
+                <div>
+                  <div style={{color:C.red,fontWeight:600,fontSize:13}}>Overdue Bills!</div>
+                  <div style={{color:C.muted,fontSize:11}}>You have {overdue.length} overdue payment(s). Pay immediately to avoid late fees.</div>
+                </div>
+              </div>
+            )}
+
+            {bills.map(bill=>{
+              const daysUntil = Math.round((new Date(bill.dueDate)-new Date())/(1000*60*60*24));
+              return (
+                <div key={bill.id} style={{
+                  display:"flex",alignItems:"center",gap:14,
+                  padding:"14px 0",borderBottom:`1px solid ${C.border}22`
+                }}>
+                  <div style={{
+                    width:42,height:42,borderRadius:10,
+                    background:statusBg[bill.status],
+                    display:"flex",alignItems:"center",justifyContent:"center",fontSize:20
+                  }}>{bill.icon}</div>
+                  <div style={{flex:1}}>
+                    <div style={{color:C.text,fontSize:13,fontWeight:500}}>{bill.name}</div>
+                    <div style={{color:C.muted,fontSize:11,marginTop:2}}>
+                      Due: {bill.dueDate} 
+                      {bill.status==="pending" && ` · ${daysUntil >= 0 ? daysUntil+" days left" : "Overdue"}`}
+                    </div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{color:C.text,fontWeight:600,fontSize:14}}>{fmt(bill.amount)}</div>
+                    <span style={{
+                      background:statusBg[bill.status],color:statusColor[bill.status],
+                      fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:20
+                    }}>{bill.status.toUpperCase()}</span>
+                  </div>
+                  {bill.status !== "paid" && (
+                    <button onClick={()=>setBills(bills.map(b=>b.id===bill.id?{...b,status:"paid"}:b))} style={{
+                      background:C.greenSoft,border:`1px solid ${C.green}44`,
+                      borderRadius:8,padding:"6px 12px",color:C.green,
+                      fontSize:11,cursor:"pointer",fontWeight:600
+                    }}>Mark Paid</button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── RECURRING ─────────────────────────────────────────────────────────────
+    function Recurring({ transactions }) {
+      const recurring = transactions.filter(t=>t.recurring);
+      const totalIncome = recurring.filter(t=>t.type==="income").reduce((a,t)=>a+t.amount,0);
+      const totalExpense = recurring.filter(t=>t.type==="expense").reduce((a,t)=>a+t.amount,0);
+
+      return (
+        <div>
+          <div style={{marginBottom:20}}>
+            <h2 style={{color:C.text,fontSize:22,fontWeight:700,margin:0}}>Recurring Transactions</h2>
+            <p style={{color:C.muted,fontSize:13,margin:"4px 0 0"}}>Auto-tracked monthly recurring items</p>
+          </div>
+
+          <div style={{display:"flex",gap:14,marginBottom:20}}>
+            <StatCard label="Recurring Income" value={fmt(totalIncome)} icon="💰" color={C.green} sub="per month" />
+            <StatCard label="Recurring Expenses" value={fmt(totalExpense)} icon="📤" color={C.red} sub="per month" />
+            <StatCard label="Net Recurring" value={fmt(totalIncome-totalExpense)} icon="📊" color={C.accent} />
+          </div>
+
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:20}}>
+            <div style={{color:C.text,fontWeight:600,marginBottom:14}}>Monthly Recurring Items</div>
+            {recurring.map(t=>(
+              <div key={t.id} style={{
+                display:"flex",alignItems:"center",gap:12,
+                padding:"12px 0",borderBottom:`1px solid ${C.border}22`
+              }}>
+                <div style={{
+                  width:38,height:38,borderRadius:9,fontSize:16,
+                  background:t.type==="income"?C.greenSoft:C.redSoft,
+                  display:"flex",alignItems:"center",justifyContent:"center"
+                }}>{CATEGORY_ICONS[t.category]||"🔄"}</div>
+                <div style={{flex:1}}>
+                  <div style={{color:C.text,fontSize:13}}>{t.desc}</div>
+                  <div style={{color:C.muted,fontSize:10}}>{t.category} · Monthly</div>
+                </div>
+                <div style={{
+                  color:t.type==="income"?C.green:C.red,
+                  fontWeight:600,fontSize:13
+                }}>{t.type==="income"?"+":"-"}{fmt(t.amount)}</div>
+                <div style={{
+                  background:C.accentSoft,color:C.accent,
+                  fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600
+                }}>🔄 AUTO</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── ADMIN ─────────────────────────────────────────────────────────────────
+    function Admin({ transactions }) {
+      const users = [
+        {id:1,name:"Aarav Mehta",email:"aarav@email.com",plan:"Pro",txCount:15,joined:"2024-01-10",status:"active"},
+        {id:2,name:"Priya Singh",email:"priya@email.com",plan:"Free",txCount:8,joined:"2024-03-15",status:"active"},
+        {id:3,name:"Rohan Verma",email:"rohan@email.com",plan:"Pro",txCount:22,joined:"2023-11-20",status:"active"},
+        {id:4,name:"Kavya Nair",email:"kavya@email.com",plan:"Free",txCount:3,joined:"2024-05-02",status:"inactive"},
+        {id:5,name:"Arjun Reddy",email:"arjun@email.com",plan:"Pro",txCount:31,joined:"2023-08-11",status:"active"},
+      ];
+
+      return (
+        <div>
+          <div style={{marginBottom:20}}>
+            <h2 style={{color:C.text,fontSize:22,fontWeight:700,margin:0}}>Admin Dashboard</h2>
+            <p style={{color:C.muted,fontSize:13,margin:"4px 0 0"}}>Platform overview and user management</p>
+          </div>
+
+          <div style={{display:"flex",gap:14,marginBottom:20,flexWrap:"wrap"}}>
+            <StatCard label="Total Users" value="1,284" change={8} icon="👥" color={C.blue} />
+            <StatCard label="Active Users" value="847" change={5} icon="🟢" color={C.green} />
+            <StatCard label="Pro Subscribers" value="312" change={15} icon="⭐" color={C.accent} />
+            <StatCard label="Total Transactions" value="18.4K" change={22} icon="📋" color={C.yellow} />
+          </div>
+
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:20,marginBottom:16}}>
+            <div style={{color:C.text,fontWeight:600,marginBottom:14}}>Recent Users</div>
+            <div style={{display:"grid",gridTemplateColumns:"2fr 2fr 1fr 1fr 1fr auto",
+              padding:"8px 0",borderBottom:`1px solid ${C.border}`,
+              color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase",gap:8}}>
+              <div>Name</div><div>Email</div><div>Plan</div><div>Transactions</div><div>Status</div><div>Actions</div>
+            </div>
+            {users.map(u=>(
+              <div key={u.id} style={{
+                display:"grid",gridTemplateColumns:"2fr 2fr 1fr 1fr 1fr auto",
+                padding:"12px 0",borderBottom:`1px solid ${C.border}22`,
+                alignItems:"center",gap:8
+              }}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{
+                    width:30,height:30,borderRadius:"50%",
+                    background:`linear-gradient(135deg,${C.accent},${C.pink})`,
+                    display:"flex",alignItems:"center",justifyContent:"center",
+                    fontSize:12,fontWeight:700,color:"#fff"
+                  }}>{u.name[0]}</div>
+                  <div style={{color:C.text,fontSize:12}}>{u.name}</div>
+                </div>
+                <div style={{color:C.muted,fontSize:11,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email}</div>
+                <div>
+                  <span style={{
+                    background:u.plan==="Pro"?C.accentSoft:C.card,
+                    color:u.plan==="Pro"?C.accent:C.muted,
+                    fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600
+                  }}>{u.plan}</span>
+                </div>
+                <div style={{color:C.text,fontSize:12}}>{u.txCount}</div>
+                <div>
+                  <span style={{
+                    background:u.status==="active"?C.greenSoft:C.redSoft,
+                    color:u.status==="active"?C.green:C.red,
+                    fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600
+                  }}>{u.status}</span>
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <button style={{
+                    background:C.yellowSoft,border:"none",borderRadius:6,
+                    padding:"4px 8px",color:C.yellow,fontSize:10,cursor:"pointer"
+                  }}>Block</button>
+                  <button style={{
+                    background:C.redSoft,border:"none",borderRadius:6,
+                    padding:"4px 8px",color:C.red,fontSize:10,cursor:"pointer"
+                  }}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+            <div style={{background:C.card,borderRadius:14,padding:20,border:`1px solid ${C.border}`}}>
+              <div style={{color:C.text,fontWeight:600,marginBottom:14,fontSize:14}}>Platform Revenue</div>
+              <ResponsiveContainer width="100%" height={150}>
+                <BarChart data={[
+                  {month:"Jan",rev:28000},{month:"Feb",rev:31000},{month:"Mar",rev:35000},
+                  {month:"Apr",rev:29000},{month:"May",rev:41000},{month:"Jun",rev:48000}
+                ]}>
+                  <Bar dataKey="rev" fill={C.accent} radius={[4,4,0,0]}/>
+                  <XAxis dataKey="month" tick={{fill:C.muted,fontSize:10}} axisLine={false} tickLine={false}/>
+                  <Tooltip formatter={v=>fmt(v)} contentStyle={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,color:C.text}}/>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={{background:C.card,borderRadius:14,padding:20,border:`1px solid ${C.border}`}}>
+              <div style={{color:C.text,fontWeight:600,marginBottom:14,fontSize:14}}>System Health</div>
+              {[
+                {label:"API Response Time",value:"124ms",color:C.green,pct:90},
+                {label:"Database Load",value:"34%",color:C.yellow,pct:34},
+                {label:"Server Uptime",value:"99.9%",color:C.green,pct:99},
+                {label:"Error Rate",value:"0.1%",color:C.green,pct:2},
+              ].map(m=>(
+                <div key={m.label} style={{marginBottom:10}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                    <span style={{color:C.muted,fontSize:11}}>{m.label}</span>
+                    <span style={{color:m.color,fontSize:11,fontWeight:600}}>{m.value}</span>
+                  </div>
+                  <div style={{background:C.border,borderRadius:4,height:5}}>
+                    <div style={{width:m.pct+"%",height:"100%",borderRadius:4,background:m.color}}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── LOGIN / AUTH ──────────────────────────────────────────────────────────
+    function AuthScreen({ onLogin }) {
+      const [mode, setMode] = useState("login");
+      const [form, setForm] = useState({email:"",password:"",name:""});
+
+      const inputStyle = {
+        background:C.surface, border:`1px solid ${C.border}`, borderRadius:10,
+        padding:"12px 14px", color:C.text, fontSize:14, outline:"none",
+        width:"100%", boxSizing:"border-box", marginBottom:12
+      };
+
+      return (
+        <div style={{
+          minHeight:"100vh", background:C.bg,
+          display:"flex", alignItems:"center", justifyContent:"center"
+        }}>
+          <div style={{width:400}}>
+            <div style={{textAlign:"center",marginBottom:32}}>
+              <div style={{
+                width:56,height:56,borderRadius:14,
+                background:`linear-gradient(135deg,${C.accent},${C.pink})`,
+                display:"flex",alignItems:"center",justifyContent:"center",
+                fontSize:28,margin:"0 auto 14px",fontWeight:700,color:"#fff"
+              }}>₹</div>
+              <div style={{color:C.text,fontSize:24,fontWeight:700}}>FinSmart</div>
+              <div style={{color:C.muted,fontSize:13,marginTop:4}}>Your Personal Finance AI Advisor</div>
+            </div>
+
+            <div style={{
+              background:C.surface,borderRadius:16,padding:28,
+              border:`1px solid ${C.border}`
+            }}>
+              <div style={{display:"flex",marginBottom:20,background:C.card,borderRadius:8,padding:4}}>
+                {["login","register"].map(m=>(
+                  <button key={m} onClick={()=>setMode(m)} style={{
+                    flex:1,padding:"8px",borderRadius:6,border:"none",cursor:"pointer",
+                    background:mode===m?C.accent:"transparent",
+                    color:mode===m?"#fff":C.muted,fontSize:13,fontWeight:600,
+                    textTransform:"capitalize"
+                  }}>{m==="login"?"Sign In":"Create Account"}</button>
+                ))}
+              </div>
+
+              {mode==="register" && (
+                <input placeholder="Full Name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} style={inputStyle}/>
+              )}
+              <input placeholder="Email address" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} style={inputStyle}/>
+              <input placeholder="Password" type="password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} style={inputStyle}/>
+
+              {mode==="login" && (
+                <div style={{textAlign:"right",marginBottom:8}}>
+                  <button style={{background:"none",border:"none",color:C.accent,fontSize:12,cursor:"pointer"}}>Forgot password?</button>
+                </div>
+              )}
+
+              <button onClick={onLogin} style={{
+                width:"100%",padding:"12px",borderRadius:10,border:"none",
+                background:`linear-gradient(135deg,${C.accent},${C.pink})`,
+                color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",marginBottom:12
+              }}>{mode==="login"?"Sign In →":"Create Account →"}</button>
+
+              <div style={{position:"relative",textAlign:"center",margin:"12px 0"}}>
+                <div style={{borderTop:`1px solid ${C.border}`,position:"absolute",top:"50%",width:"100%"}}/>
+                <span style={{background:C.surface,padding:"0 12px",color:C.muted,fontSize:11,position:"relative"}}>or continue with</span>
+              </div>
+
+              <button onClick={onLogin} style={{
+                width:"100%",padding:"11px",borderRadius:10,
+                border:`1px solid ${C.border}`,background:C.card,
+                color:C.text,fontSize:13,cursor:"pointer",
+                display:"flex",alignItems:"center",justifyContent:"center",gap:10
+              }}>
+                <span style={{fontSize:16}}>G</span> Continue with Google
+              </button>
+            </div>
+
+            <div style={{textAlign:"center",color:C.muted,fontSize:11,marginTop:20}}>
+              Demo: click any button to explore the app
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ─── ROOT APP ──────────────────────────────────────────────────────────────
+    function App() {
+      const [authed, setAuthed] = useState(false);
+      const [page, setPage] = useState("dashboard");
+      const [transactions, setTransactions] = useState(SEED_TRANSACTIONS);
+      const [budgets, setBudgets] = useState(SEED_BUDGETS);
+      const [goals, setGoals] = useState(SEED_GOALS);
+
+      const addTransaction = useCallback((tx)=>setTransactions(prev=>[tx,...prev]),[]);
+      const deleteTransaction = useCallback((id)=>setTransactions(prev=>prev.filter(t=>t.id!==id)),[]);
+      const updateBudget = useCallback((cat,val)=>setBudgets(prev=>({...prev,[cat]:val})),[]);
+      const addGoal = useCallback((g)=>setGoals(prev=>[...prev,g]),[]);
+      const contribute = useCallback((id,amt)=>setGoals(prev=>prev.map(g=>g.id===id?{...g,saved:Math.min(g.saved+amt,g.target)}:g)),[]);
+
+      if(!authed) return <AuthScreen onLogin={()=>setAuthed(true)}/>;
+
+      const pageMap = {
+        dashboard:<Dashboard transactions={transactions} budgets={budgets} goals={goals}/>,
+        transactions:<Transactions transactions={transactions} onAdd={addTransaction} onDelete={deleteTransaction}/>,
+        budget:<Budget transactions={transactions} budgets={budgets} onUpdateBudget={updateBudget}/>,
+        goals:<Goals goals={goals} onAddGoal={addGoal} onContribute={contribute}/>,
+        reports:<Reports transactions={transactions}/>,
+        ai:<AIInsights transactions={transactions} goals={goals}/>,
+        bills:<Bills/>,
+        recurring:<Recurring transactions={transactions}/>,
+        admin:<Admin transactions={transactions}/>,
+      };
+
+      return (
+        <div style={{
+          display:"flex", minHeight:"100vh", background:C.bg,
+          fontFamily:"'Inter',-apple-system,BlinkMacSystemFont,sans-serif",
+          fontSize:14, color:C.text
+        }}>
+          <Sidebar active={page} onNav={setPage}/>
+          <main style={{flex:1,padding:28,overflowY:"auto",maxHeight:"100vh"}}>
+            {pageMap[page] || <Dashboard transactions={transactions} budgets={budgets} goals={goals}/>}
+          </main>
+        </div>
+      );
+    }
+
+    // Mount the Application
+    const rootElement = document.getElementById('root');
+    if (rootElement) {
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(<App />);
+    }
+  </script>
+</body>
+</html>
